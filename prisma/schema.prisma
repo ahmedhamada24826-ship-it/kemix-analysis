@@ -1,0 +1,521 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  name          String
+  passwordHash  String
+  authVersion   Int         @default(0)
+  phone         String?
+  companyName   String?
+  companySector String?
+  clientType    String      @default("ORGANIZATION") // INDIVIDUAL, ORGANIZATION
+  role          String      @default("CLIENT") // SUPER_ADMIN, OPERATIONS_MANAGER, PROJECT_LEAD, ANALYST, SUPPORT_AGENT, CLIENT
+  status        String      @default("ACTIVE") // ACTIVE, SUSPENDED
+  avatarUrl     String?
+  departmentId  String?
+  department    Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  jobTitle      String?
+  bio           String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Client relations
+  serviceRequests   ServiceRequest[] @relation("ClientRequests")
+  assignedRequests  ServiceRequest[] @relation("AssignedStaffRequests")
+  projects          Project[]        @relation("ClientProjects")
+  leadProjects      Project[]        @relation("LeadProjects")
+  conversations     Conversation[]   @relation("ClientConversations")
+  messages          Message[]
+  proposals         Proposal[]       @relation("ClientProposals")
+  acceptedProposals Proposal[]       @relation("AcceptedProposals")
+  supportTickets    SupportTicket[]  @relation("ClientTickets")
+  assignedTickets   SupportTicket[]  @relation("AssignedStaffTickets")
+  ticketReplies     TicketReply[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  // Phase 2 relations
+  departmentLed       Department[]         @relation("DepartmentLead")
+  managementMessages  ManagerMessage[]     @relation("ManagerMessages")
+  passwordResetTokens PasswordResetToken[]
+  projectMembers      ProjectMember[]
+  assignedTasks       Task[]               @relation("TaskAssignee")
+  createdTasks        Task[]               @relation("TaskCreator")
+  workflowStages      WorkflowStage[]      @relation("StageAssignee")
+  submittedStages     WorkflowStage[]      @relation("StageSubmitter")
+  reviewedStages      WorkflowStage[]      @relation("StageReviewer")
+  uploadedFiles       FileUpload[]
+  approvedFiles       FileUpload[]         @relation("FileApprover")
+  invitedBy           UserInvite[]         @relation("InviteCreator")
+
+  @@index([email])
+  @@index([role])
+  @@index([departmentId])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  leadUserId  String?
+  lead        User?    @relation("DepartmentLead", fields: [leadUserId], references: [id])
+  orderIndex  Int      @default(0)
+  color       String   @default("#0066ff") // For UI display
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members        User[]          @relation("DepartmentMembers")
+  projects       Project[]       @relation("DepartmentProjects")
+  workflowStages WorkflowStage[] @relation("StageAssignedDepartment")
+
+  @@index([isActive])
+}
+
+model Service {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  title             String
+  shortDescription  String
+  fullDescription   String
+  category          String
+  features          String // JSON array of strings
+  deliverables      String // JSON array of strings
+  iconName          String
+  estimatedTimeline String
+  startingPrice     String?
+  isActive          Boolean  @default(true)
+  orderIndex        Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model ServiceRequest {
+  id                     String    @id @default(cuid())
+  referenceNumber        String    @unique
+  clientId               String
+  client                 User      @relation("ClientRequests", fields: [clientId], references: [id], onDelete: Cascade)
+  serviceType            String
+  problemDescription     String
+  businessObjective      String
+  desiredOutcome         String
+  currentChallenge       String?
+  expectedValue          String?
+  dataSourceType         String    @default("spreadsheets") // spreadsheets, database, business_software, api, manual_records, unknown
+  approxDataVolume       String?
+  hasDataAccess          Boolean   @default(true)
+  hasRestrictions        Boolean   @default(false)
+  needsPreparationHelp   Boolean   @default(false)
+  preferredDeadline      String?
+  budgetRange            String?
+  preferredContactMethod String    @default("EMAIL") // EMAIL, PHONE, PLATFORM
+  bestTimeForCall        String?
+  additionalNotes        String?
+  status                 String    @default("NEW_REQUEST")
+  // NEW_REQUEST, UNDER_REVIEW, CALL_SCHEDULED, QUALIFIED, PROPOSAL_SENT, APPROVED, AWAITING_DATA, IN_PROGRESS, QA_REVIEW, DELIVERED, CLOSED, ON_HOLD, REJECTED, CANCELLED
+  assignedStaffId        String?
+  assignedStaff          User?     @relation("AssignedStaffRequests", fields: [assignedStaffId], references: [id])
+  consultationDate       DateTime?
+  followUpDate           DateTime?
+  internalNotes          String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  projects      Project[]
+  proposals     Proposal[]
+  conversations Conversation[]
+
+  @@index([referenceNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedStaffId])
+}
+
+model Project {
+  id                 String            @id @default(cuid())
+  referenceNumber    String            @unique
+  requestId          String?
+  request            ServiceRequest?   @relation(fields: [requestId], references: [id])
+  clientId           String
+  client             User              @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  title              String
+  description        String
+  scopeOfWork        String
+  leadStaffId        String?
+  leadStaff          User?             @relation("LeadProjects", fields: [leadStaffId], references: [id])
+  departmentId       String?
+  department         Department?       @relation("DepartmentProjects", fields: [departmentId], references: [id])
+  status             String            @default("PLANNING") // PLANNING, ACTIVE, IN_REVIEW, DELIVERED, CLOSED, ON_HOLD
+  priority           String            @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  workflowTemplateId String?
+  workflowTemplate   WorkflowTemplate? @relation(fields: [workflowTemplateId], references: [id])
+  startDate          DateTime?
+  targetDeliveryDate DateTime?
+  actualDeliveryDate DateTime?
+  budget             Float?
+  qaOutcome          String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  milestones     Milestone[]
+  deliverables   Deliverable[]
+  conversations  Conversation[]
+  members        ProjectMember[]
+  tasks          Task[]
+  workflowStages WorkflowStage[]
+  fileUploads    FileUpload[]
+
+  @@index([referenceNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([leadStaffId])
+  @@index([departmentId])
+  @@index([priority])
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("MEMBER") // LEAD, MEMBER, VIEWER, QA_REVIEWER
+  joinedAt  DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  status      String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  orderIndex  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+}
+
+model Task {
+  id           String         @id @default(cuid())
+  projectId    String
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentTaskId String?
+  parentTask   Task?          @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks     Task[]         @relation("SubTasks")
+  assigneeId   String?
+  assignee     User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById  String?
+  createdBy    User?          @relation("TaskCreator", fields: [createdById], references: [id])
+  stageId      String?
+  stage        WorkflowStage? @relation(fields: [stageId], references: [id])
+  title        String
+  description  String?
+  status       String         @default("TODO") // TODO, IN_PROGRESS, REVIEW, DONE, CANCELLED
+  priority     String         @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  dueDate      DateTime?
+  completedAt  DateTime?
+  orderIndex   Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([parentTaskId])
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  serviceType String? // maps to serviceType in ServiceRequest — null = universal
+  description String?
+  stages      String // JSON: Array of { key, title, description, assignedDepartmentKey, requiresReview }
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projects Project[]
+
+  @@index([isActive])
+}
+
+model WorkflowStage {
+  id                   String      @id @default(cuid())
+  projectId            String
+  project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  templateStageKey     String // matches the key in WorkflowTemplate.stages JSON
+  title                String
+  description          String?
+  orderIndex           Int         @default(0)
+  status               String      @default("PENDING") // PENDING, ACTIVE, IN_PROGRESS, SUBMITTED, APPROVED, REJECTED, SKIPPED
+  assignedDepartmentId String?
+  assignedDepartment   Department? @relation("StageAssignedDepartment", fields: [assignedDepartmentId], references: [id])
+  assignedUserId       String?
+  assignedUser         User?       @relation("StageAssignee", fields: [assignedUserId], references: [id])
+  submittedAt          DateTime?
+  submittedByUserId    String?
+  submittedBy          User?       @relation("StageSubmitter", fields: [submittedByUserId], references: [id])
+  reviewedAt           DateTime?
+  reviewedByUserId     String?
+  reviewedBy           User?       @relation("StageReviewer", fields: [reviewedByUserId], references: [id])
+  reviewNotes          String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  tasks Task[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([assignedDepartmentId])
+}
+
+model FileUpload {
+  id               String    @id @default(cuid())
+  projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedByUserId String
+  uploadedBy       User      @relation(fields: [uploadedByUserId], references: [id])
+  approvedByUserId String?
+  approvedBy       User?     @relation("FileApprover", fields: [approvedByUserId], references: [id])
+  filename         String // stored filename on disk (UUID-based)
+  originalName     String // original filename from client
+  mimeType         String
+  sizeBytes        Int
+  storageKey       String // relative path within private uploads dir
+  category         String    @default("INTERNAL") // INTERNAL, DELIVERABLE, CLIENT_UPLOAD, PROPOSAL_ATTACHMENT
+  description      String?
+  version          Int       @default(1)
+  isApproved       Boolean   @default(false)
+  approvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([projectId])
+  @@index([uploadedByUserId])
+  @@index([category])
+}
+
+model Proposal {
+  id               String          @id @default(cuid())
+  referenceNumber  String          @unique
+  requestId        String?
+  request          ServiceRequest? @relation(fields: [requestId], references: [id])
+  clientId         String
+  client           User            @relation("ClientProposals", fields: [clientId], references: [id], onDelete: Cascade)
+  version          Int             @default(1)
+  title            String
+  scopeSummary     String
+  deliverables     String // JSON array of strings
+  price            Float
+  currency         String          @default("USD")
+  paymentTerms     String
+  timelineDays     Int
+  assumptions      String?
+  exclusions       String?
+  expiresAt        DateTime?
+  status           String          @default("SENT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  acceptedByUser   User?           @relation("AcceptedProposals", fields: [acceptedByUserId], references: [id])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([referenceNumber])
+  @@index([clientId])
+  @@index([status])
+}
+
+model Deliverable {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  fileUrl      String?
+  externalLink String?
+  fileType     String? // PDF, PowerBI, SQL, Python, Excel, Interactive Dashboard
+  fileSize     String?
+  version      String   @default("1.0")
+  isApproved   Boolean  @default(true)
+  publishedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model Conversation {
+  id        String          @id @default(cuid())
+  title     String
+  requestId String?
+  request   ServiceRequest? @relation(fields: [requestId], references: [id])
+  projectId String?
+  project   Project?        @relation(fields: [projectId], references: [id])
+  clientId  String
+  client    User            @relation("ClientConversations", fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  messages Message[]
+
+  @@index([clientId])
+  @@index([requestId])
+  @@index([projectId])
+}
+
+model Message {
+  id                  String       @id @default(cuid())
+  conversationId      String
+  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId            String
+  sender              User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content             String
+  isInternalStaffNote Boolean      @default(false) // Never visible to clients
+  readByClient        Boolean      @default(false)
+  readByStaff         Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// Private company-wide coordination channel for operations and department leads.
+model ManagerMessage {
+  id        String   @id @default(cuid())
+  senderId  String
+  sender    User     @relation("ManagerMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([senderId])
+}
+
+model ContactInquiry {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("NEW") // NEW, IN_PROGRESS, RESOLVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model SupportTicket {
+  id              String   @id @default(cuid())
+  ticketNumber    String   @unique
+  clientId        String
+  client          User     @relation("ClientTickets", fields: [clientId], references: [id], onDelete: Cascade)
+  assignedStaffId String?
+  assignedStaff   User?    @relation("AssignedStaffTickets", fields: [assignedStaffId], references: [id])
+  subject         String
+  category        String // Technical, Billing, Request Status, Deliverable Access, General
+  priority        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status          String   @default("OPEN") // OPEN, IN_PROGRESS, WAITING_ON_CLIENT, RESOLVED, CLOSED
+  resolutionNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  replies TicketReply[]
+
+  @@index([ticketNumber])
+  @@index([clientId])
+  @@index([assignedStaffId])
+  @@index([status])
+}
+
+model TicketReply {
+  id         String        @id @default(cuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content    String
+  isInternal Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  @@index([ticketId])
+  @@index([senderId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  type      String   @default("GENERAL") // REQUEST, MESSAGE, PROPOSAL, PROJECT, SUPPORT, TASK, WORKFLOW
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String // CREATE, UPDATE, DELETE, STATUS_CHANGE, LOGIN, APPROVE, REJECT, UPLOAD, ASSIGN
+  entityType String // REQUEST, PROPOSAL, PROJECT, USER, TICKET, MESSAGE, TASK, STAGE, FILE, DEPARTMENT
+  entityId   String?
+  details    String? // JSON string
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model UserInvite {
+  id           String    @id @default(cuid())
+  email        String
+  role         String    @default("ANALYST")
+  departmentId String?
+  token        String    @unique
+  invitedById  String
+  invitedBy    User      @relation("InviteCreator", fields: [invitedById], references: [id])
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([token])
+  @@index([email])
+}

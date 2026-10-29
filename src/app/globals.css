@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --kemix-navy: #0b2545;
+  --kemix-navy-dark: #07182c;
+  --kemix-navy-light: #163a69;
+  --kemix-blue: #0066ff;
+  --kemix-blue-hover: #0052cc;
+  --kemix-blue-light: #e6f0ff;
+  --kemix-orange: #ff7a00;
+  --kemix-orange-hover: #e06900;
+  --kemix-orange-light: #fff4eb;
+}
+
+@theme {
+  --color-kemix-navy: #0b2545;
+  --color-kemix-navy-dark: #07182c;
+  --color-kemix-navy-light: #163a69;
+  --color-kemix-blue: #0066ff;
+  --color-kemix-blue-hover: #0052cc;
+  --color-kemix-blue-light: #e6f0ff;
+  --color-kemix-orange: #ff7a00;
+  --color-kemix-orange-hover: #e06900;
+  --color-kemix-orange-light: #fff4eb;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
+/* Custom scrollbars for clean dashboards */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
