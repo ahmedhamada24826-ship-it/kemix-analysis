@@ -28,7 +28,7 @@ The server checks access for project, task, file, request, support, and conversa
 ## Technology
 
 - Next.js 16 App Router, React 19, TypeScript, and Tailwind CSS 4
-- Prisma 6 with SQLite for local development
+- Prisma 6 with PostgreSQL for production and local development
 - JWT sessions in HTTP-only cookies and bcrypt password hashing
 - Private project file storage under `private/uploads`
 
@@ -37,16 +37,17 @@ The server checks access for project, task, file, request, support, and conversa
 1. Install dependencies with `npm install`.
 2. Copy `.env.example` to `.env` and set a unique `JWT_SECRET` with at least 32 characters. Keep secrets out of source control.
    Configure `RESEND_API_KEY`, a verified `EMAIL_FROM`, and `NEXT_PUBLIC_APP_URL` to enable password recovery emails.
-3. Generate the Prisma client and prepare the local database with `npx prisma db push`.
+3. Generate the Prisma client and prepare the local PostgreSQL database with `npx prisma migrate dev`.
 4. Optionally load sample data with `npm run seed`. The command prints a random one-time password for local demo accounts. Demo seeding is blocked in production.
 5. Start the app with `npm run dev` and open `http://localhost:3000`.
 
-For production, configure a persistent database, a strong secret, HTTPS, private persistent file storage, and backups. The local SQLite database and local upload folder are for development and single-instance use.
+For production, connect Prisma Postgres in Vercel Storage and configure `JWT_SECRET`. Before the first production deployment, set `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_NAME`, and a unique `INITIAL_ADMIN_PASSWORD` in Vercel Production. The deployment applies database migrations and creates the first administrator; remove these three bootstrap variables after that deployment succeeds. The application build then runs `prisma migrate deploy` before Next.js builds.
 
 ## Useful commands
 
 - `npm run dev` — local development server
 - `npm run build` — production build
+- `npm run vercel-build` — apply PostgreSQL migrations, create the first production administrator if needed, and build for Vercel
 - `npm run start` — serve the production build
 - `npm run lint` — ESLint checks
 - `npm run test` — business flow integration tests
