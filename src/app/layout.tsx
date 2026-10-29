@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { LocaleProvider } from "@/components/LocaleProvider";
+import { Suspense } from "react";
+import { LocaleShell } from "@/components/LocaleShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,20 +12,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const locale = cookieStore.get("kemix_locale")?.value === "ar" ? "ar" : "en";
   return (
-    <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} className="h-full bg-slate-50 text-slate-900 antialiased">
+    <html lang="en" className="h-full bg-slate-50 text-slate-900 antialiased">
       <body className="min-h-full flex flex-col font-sans selection:bg-blue-500 selection:text-white">
-        <LocaleProvider locale={locale}>
+        <Suspense fallback={<div className="min-h-screen bg-slate-50" aria-busy="true" />}>
+          <LocaleShell>
           {children}
-          <LanguageSwitcher />
-        </LocaleProvider>
+          </LocaleShell>
+        </Suspense>
       </body>
     </html>
   );
